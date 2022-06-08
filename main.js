@@ -6,6 +6,7 @@ const {
   WETH,
 } = require("./src/trade_variables.js");
 const { getUniv2PairAddress, getUniv2Reserve } = require("./src/utils.js");
+const { calcOptimalSandwichAmount } = require("./src/profitability.js");
 const SwapRouter02Abi = require("./src/abi/SwapRouter02.json");
 
 const iface = new ethers.utils.Interface(SwapRouter02Abi);
@@ -40,7 +41,7 @@ async function filterTx(tx) {
         ["uint256", "address[]", "address", "uint256"],
         ethers.utils.hexDataSlice(data, 4)
       );
-      amountIn = tx.value.toString();
+      amountIn = tx.value;
       token0 = WETH;
       token1 = path[1];
     }
@@ -73,8 +74,8 @@ async function filterTx(tx) {
       {
         swap: token0,
         target: token1,
-        amountIn: ethers.utils.formatEther(amountIn),
-        amountOut: ethers.utils.formatEther(amountOutMin),
+        amountIn: ethers.utils.formatEther(amountIn.toString()),
+        amountOutMin: ethers.utils.formatEther(amountOutMin),
         gasPrice: ethers.utils.formatUnits(gasPrice, "gwei"),
         gasLimit: gasLimit.toString(),
       },
@@ -92,6 +93,16 @@ async function filterTx(tx) {
   );
 
   // Todo: Calculate Sandwich profitability
+  const optimalSandwichAmount = calcOptimalSandwichAmount(
+    amountIn,
+    amountOutMin,
+    reserveWETH,
+    reserveToken
+  );
+  console.log(
+    "Optimal Sandwich amount: ",
+    ethers.utils.formatEther(optimalSandwichAmount.toString())
+  );
 }
 
 async function main() {

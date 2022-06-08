@@ -39,5 +39,22 @@ const getUniv2Reserve = async (pair, tokenA, tokenB) => {
   return [reserve1, reserve0];
 };
 
+const getUniv2DataGivenAmountIn = (amountIn, reserveA, reserveB) => {
+  const amountInWithFee = amountIn.mul(997); // 0.3% swap fee
+  const numerator = amountInWithFee.mul(reserveB);
+  const denominator = amountInWithFee.add(reserveA.mul(1000));
+  const amountOut = numerator.div(denominator);
+
+  const newReserveA = reserveA.add(amountIn);
+  const newReserveB = reserveB.sub(amountOut);
+
+  return {
+    amountOut: amountOut,
+    newReserveA,
+    newReserveB,
+  };
+};
+
 exports.getUniv2Reserve = getUniv2Reserve;
 exports.getUniv2PairAddress = getUniv2PairAddress;
+exports.getUniv2DataGivenAmountIn = getUniv2DataGivenAmountIn;
