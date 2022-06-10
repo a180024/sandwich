@@ -6,7 +6,10 @@ const {
   WETH,
 } = require("./src/trade_variables.js");
 const { getUniv2PairAddress, getUniv2Reserve } = require("./src/utils.js");
-const { calcOptimalSandwichAmount } = require("./src/profitability.js");
+const {
+  calcOptimalSandwichAmount,
+  calcRawProfits,
+} = require("./src/calculation.js");
 const SwapRouter02Abi = require("./src/abi/SwapRouter02.json");
 
 const iface = new ethers.utils.Interface(SwapRouter02Abi);
@@ -84,7 +87,6 @@ async function filterTx(tx) {
     )
   );
 
-  // Get liquidity pair reserves
   const pairAddress = getUniv2PairAddress(WETH, token1);
   const [reserveWETH, reserveToken] = await getUniv2Reserve(
     pairAddress,
@@ -92,7 +94,6 @@ async function filterTx(tx) {
     token1
   );
 
-  // Todo: Calculate Sandwich profitability
   const optimalSandwichAmount = calcOptimalSandwichAmount(
     amountIn,
     amountOutMin,
@@ -103,6 +104,27 @@ async function filterTx(tx) {
     "Optimal Sandwich amount: ",
     ethers.utils.formatEther(optimalSandwichAmount.toString())
   );
+
+  const rawProfits = calcRawProfits(
+    amountIn,
+    amountOutMin,
+    reserveWETH,
+    reserveToken,
+    optimalSandwichAmount
+  );
+  console.log(
+    "Raw profits excluding transaction costs: ",
+    ethers.utils.formatEther(rawProfits.toString())
+  );
+
+  if (rawProfits === null) {
+    console.log("Victim receives less than minimum amount");
+    return;
+  }
+
+  // Add Smart Contract
+  // Run Flashbots
+  // Calc profits with gas simulation
 }
 
 async function main() {

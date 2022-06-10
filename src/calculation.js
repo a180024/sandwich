@@ -68,4 +68,37 @@ function calcOptimalSandwichAmount(
   return optimalSandwichAmount;
 }
 
+function calcRawProfits(
+  amountIn,
+  amountOutMin,
+  reserveWETH,
+  reserveToken,
+  optimalSandwichAmount
+) {
+  const frontrunState = getUniv2DataGivenAmountIn(
+    optimalSandwichAmount,
+    reserveWETH,
+    reserveToken
+  );
+  const victimState = getUniv2DataGivenAmountIn(
+    amountIn,
+    frontrunState.newReserveA,
+    frontrunState.newReserveB
+  );
+  const backrunState = getUniv2DataGivenAmountIn(
+    frontrunState.amountOut,
+    victimState.newReserveB,
+    victimState.newReserveA
+  );
+
+  if (victimState.amountOut.lt(amountOutMin)) {
+    return null;
+  }
+
+  const rawProfits = backrunState.amountOut.sub(optimalSandwichAmount);
+
+  return rawProfits;
+}
+
 exports.calcOptimalSandwichAmount = calcOptimalSandwichAmount;
+exports.calcRawProfits = calcRawProfits;

@@ -49,7 +49,7 @@ const getUniv2DataGivenAmountIn = (amountIn, reserveA, reserveB) => {
   const newReserveB = reserveB.sub(amountOut);
 
   return {
-    amountOut: amountOut,
+    amountOut,
     newReserveA,
     newReserveB,
   };
