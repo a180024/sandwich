@@ -17,10 +17,10 @@ interface IERC20 {
 contract Sandwich {
    address owner;
    IWETH public WETH;
-   address factory;
+   address public factory;
 
-   constructor(address _owner, address _WETH, address _factory) public {
-     owner = _owner; 
+   constructor(address _WETH, address _factory) public {
+     owner = msg.sender;
      WETH = IWETH(_WETH);
      factory = _factory;
    }
