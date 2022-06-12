@@ -5,14 +5,22 @@ require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 const WETH = "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6";
 const TOKENS_TO_MONITOR = ["0x845E5517e1cCB9394f49C909870Ea144937B68EC"];
 const MAX_WETH_TO_SANDWICH = 1;
+const SANDWICH_CONTRACT = "";
+
+const CHAIN_ID = 5;
 const WSS = process.env.GOERLI_WSS_URL;
+const FLASHBOTS_ENDPOINT = "https://relay-goerli.flashbots.net";
+
 const provider = new ethers.providers.WebSocketProvider(WSS);
-const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
 module.exports = {
   WETH,
   TOKENS_TO_MONITOR,
   MAX_WETH_TO_SANDWICH,
+  SANDWICH_CONTRACT,
+  FLASHBOTS_ENDPOINT,
+  CHAIN_ID,
   provider,
-  signer,
+  wallet,
 };

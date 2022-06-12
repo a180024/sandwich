@@ -7,6 +7,7 @@ import "./lib/TransferHelper.sol";
 
 interface IWETH {
   function deposit() external payable;
+  function transfer(address dst, uint wad) external returns (bool);
 }
 
 interface IERC20 {
@@ -17,19 +18,18 @@ interface IERC20 {
 contract Sandwich {
    address owner;
    IWETH public WETH;
-   address public factory;
+   address public constant factory = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
 
-   constructor(address _WETH, address _factory) public {
+   constructor(address _WETH) public {
      owner = msg.sender;
      WETH = IWETH(_WETH);
-     factory = _factory;
    }
 
    receive() external payable {
      WETH.deposit{value:msg.value}();
    }
 
-   function swap(uint amountIn, uint amountOutMin, address[] calldata path) external onlyOwner {
+   function swap(uint amountIn, uint amountOutMin, address[] memory path) public onlyOwner {
      uint[] memory amounts = UniswapV2Library.getAmountsOut(factory, amountIn, path);
      require(amounts[amounts.length - 1] >= amountOutMin, 'UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT');
      TransferHelper.safeTransferFrom(
@@ -48,12 +48,24 @@ contract Sandwich {
        IUniswapV2Pair(UniswapV2Library.pairFor(factory, input, output)).swap(
          amount0Out, amount1Out, to, new bytes(0)
        );
-      }
-    }
+     }
+   }
+
+   function swapOut(uint amountIn, uint amountOutMin, address[] memory path) public onlyOwner {
+     uint[] memory amounts = UniswapV2Library.getAmountsOut(factory, amountIn, path);
+     require(amounts[amounts.length - 1] >= amountOutMin, 'UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT');
+     TransferHelper.safeTransferFrom(
+        path[0], address(this), UniswapV2Library.pairFor(factory, path[0], path[1]), amounts[0]
+     );
+   }
 
    function withdraw(address token, uint amount) external onlyOwner {
      require(IERC20(token).balanceOf(address(this)) >= amount);
      IERC20(token).transfer(owner, amount);
+   }
+
+   function tokenBalance(address token) external view returns (uint balance) {
+     balance = IERC20(token).balanceOf(address(this));
    }
 
    modifier onlyOwner {
@@ -62,5 +74,3 @@ contract Sandwich {
    }
 
 }
-
-

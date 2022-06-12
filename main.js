@@ -121,10 +121,6 @@ async function filterTx(tx) {
     console.log("Victim receives less than minimum amount");
     return;
   }
-
-  // Add Smart Contract
-  // Run Flashbots
-  // Calc profits with gas simulation
 }
 
 async function main() {
