@@ -3,7 +3,6 @@
 pragma solidity =0.6.6;
 
 import "./lib/UniswapV2Library.sol";
-import "./lib/TransferHelper.sol";
 
 interface IWETH {
   function deposit() external payable;
@@ -32,9 +31,7 @@ contract Sandwich {
    function swap(uint amountIn, uint amountOutMin, address[] memory path) public onlyOwner {
      uint[] memory amounts = UniswapV2Library.getAmountsOut(factory, amountIn, path);
      require(amounts[amounts.length - 1] >= amountOutMin, 'UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT');
-     TransferHelper.safeTransferFrom(
-        path[0], address(this), UniswapV2Library.pairFor(factory, path[0], path[1]), amounts[0]
-     );
+     IERC20(path[0]).transfer(UniswapV2Library.pairFor(factory, path[0], path[1]), amounts[0]);
      _swap(amounts, path, address(this));
    }
 
@@ -49,14 +46,6 @@ contract Sandwich {
          amount0Out, amount1Out, to, new bytes(0)
        );
      }
-   }
-
-   function swapOut(uint amountIn, uint amountOutMin, address[] memory path) public onlyOwner {
-     uint[] memory amounts = UniswapV2Library.getAmountsOut(factory, amountIn, path);
-     require(amounts[amounts.length - 1] >= amountOutMin, 'UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT');
-     TransferHelper.safeTransferFrom(
-        path[0], address(this), UniswapV2Library.pairFor(factory, path[0], path[1]), amounts[0]
-     );
    }
 
    function withdraw(address token, uint amount) external onlyOwner {

@@ -3,7 +3,7 @@
 
 ## Setup
 1. Add PRIVATE_KEY, GOERLI_WSS_URL variables in .env file
-2. Add token addresses to TOKENS_TO_MONITOR in src/trade_variables.js file
+2. Fill variables in src/trade_variables.js file
 
 ## Deploy Contracts
 1. Add ETHERSCAN_API_KEY in .env file
