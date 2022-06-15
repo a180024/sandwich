@@ -2,6 +2,7 @@ const ethers = require("ethers");
 require("dotenv").config();
 const {
   provider,
+  getFlashbotsProvider,
   TOKENS_TO_MONITOR,
   WETH,
 } = require("./src/trade_variables.js");
@@ -10,7 +11,7 @@ const {
   calcOptimalSandwichAmount,
   calcSandwichStates,
 } = require("./src/calculation.js");
-const { simulateTx } = require("./src/swap.js");
+const { buildFlashbotsTx } = require("./src/swap.js");
 const SwapRouter02Abi = require("./src/abi/SwapRouter02.json");
 
 const iface = new ethers.utils.Interface(SwapRouter02Abi);
@@ -132,8 +133,17 @@ async function filterTx(tx) {
     return;
   }
 
-  // const rawVictimTx = getRawTransaction(tx);
-  const simulation = await simulateTx(sandwichStates, token1, tx);
+  const flashbotsProvider = await getFlashbotsProvider();
+  const targetBlockNumber = (await provider.getBlockNumber()) + 1;
+  const signedTransactions = await buildFlashbotsTx(sandwichStates, token1, tx);
+  const simulation = await flashbotsProvider.simulate(
+    signedTransactions,
+    targetBlockNumber
+  );
+  console.log(simulation);
+
+  // Include victim tx
+  // Calculate Gas and bribe
 }
 
 async function main() {

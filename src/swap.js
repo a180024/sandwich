@@ -13,12 +13,10 @@ const {
 const { encodeFunctionData, getRawTransaction } = require("./utils.js");
 const abi = require("./abi/Sandwich.json");
 
-async function simulateTx(sandwichStates, token, rawVictimTx) {
-  console.log(sandwichStates.frontrunState);
+const buildFlashbotsTx = async (sandwichStates, token, victimTx) => {
   const flashbotsProvider = await getFlashbotsProvider();
 
   const nonce = await provider.getTransactionCount(wallet.address);
-  const targetBlockNumber = (await provider.getBlockNumber()) + 1;
   const block = await provider.getBlock();
   const baseFeePerGas = block.baseFeePerGas; // wei
   const maxBaseFeePerGas = FlashbotsBundleProvider.getMaxBaseFeeInFutureBlock(
@@ -82,16 +80,7 @@ async function simulateTx(sandwichStates, token, rawVictimTx) {
     transactionBundle
   );
 
-  const simulation = await flashbotsProvider.simulate(
-    signedTransactions,
-    targetBlockNumber
-  );
+  return signedTransactions;
+};
 
-  console.log(simulation);
-
-  return simulation;
-}
-
-exports.simulateTx = simulateTx;
-
-// Calculate Gas and bribe
+exports.buildFlashbotsTx = buildFlashbotsTx;
