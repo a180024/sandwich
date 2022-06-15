@@ -63,7 +63,6 @@ const encodeFunctionData = (abi, funcName, funcParams) => {
 };
 
 const getRawTransaction = (tx) => {
-  console.log(tx);
   const addKey = (accum, key) => {
     if (tx[key]) {
       accum[key] = tx[key];
@@ -73,16 +72,17 @@ const getRawTransaction = (tx) => {
 
   // Extract the relevant parts of the transaction and signature
   const txFields =
-    "accessList chainId data gasPrice gasLimit maxFeePerGas maxPriorityFeePerGas nonce to type value".split(
+    "chainId data gasPrice gasLimit maxFeePerGas maxPriorityFeePerGas nonce to type value".split(
       " "
     );
-  const sigFields = "v r s recoveryParam".split(" ");
+  // const sigFields = "v r s recoveryParam".split(" ");
 
   // Seriailze the signed transaction
-  const raw = ethers.utils.serializeTransaction(
-    txFields.reduce(addKey, {}),
-    sigFields.reduce(addKey, {})
-  );
+  const raw = ethers.utils.serializeTransaction(txFields.reduce(addKey, {}), {
+    v: parseFloat(tx.v),
+    r: tx.r,
+    s: tx.s,
+  });
 
   // Double check things went well
   if (ethers.utils.keccak256(raw) !== tx.hash) {

@@ -38,8 +38,7 @@ const buildFlashbotsTx = async (sandwichStates, token, victimTx) => {
   */
   const backrunTxData = encodeFunctionData(abi, "swap", [
     sandwichStates.frontrunState.amountOut,
-    // sandwichStates.backrunState.amountOut,
-    0,
+    sandwichStates.backrunState.amountOut,
     [token, WETH],
   ]);
 
@@ -57,9 +56,9 @@ const buildFlashbotsTx = async (sandwichStates, token, victimTx) => {
         nonce: nonce,
       },
     },
-    // {
-    // signedTransaction: getRawTransaction(victimTx),
-    // },
+    {
+      signedTransaction: getRawTransaction(victimTx),
+    },
     {
       signer: wallet,
       transaction: {
