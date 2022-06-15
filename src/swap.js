@@ -32,10 +32,6 @@ const buildFlashbotsTx = async (sandwichStates, token, victimTx) => {
     [WETH, token],
   ]);
 
-  /* 
-  Temp fix without simulating victim tx 
-  Error: signature missing v and recoveryParam
-  */
   const backrunTxData = encodeFunctionData(abi, "swap", [
     sandwichStates.frontrunState.amountOut,
     sandwichStates.backrunState.amountOut,
