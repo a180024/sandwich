@@ -110,8 +110,8 @@
       ]
     },
     "/Users/davin/Downloads/assignments/sandwich/contracts/Sandwich.sol": {
-      "lastModificationDate": 1655089466474,
-      "contentHash": "d8139fe21b4bd606fb5bcf49e98c5798",
+      "lastModificationDate": 1655116831915,
+      "contentHash": "62e24b67380aa7249143c4d9c18a4397",
       "sourceName": "contracts/Sandwich.sol",
       "solcConfig": {
         "version": "0.6.6",
@@ -137,8 +137,7 @@
         }
       },
       "imports": [
-        "./lib/UniswapV2Library.sol",
-        "./lib/TransferHelper.sol"
+        "./lib/UniswapV2Library.sol"
       ],
       "versionPragmas": [
         "=0.6.6"

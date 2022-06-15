@@ -18,9 +18,11 @@ contract Sandwich {
    address owner;
    IWETH public WETH;
    address public constant factory = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+   mapping(address => bool) public isAuthorized;
 
    constructor(address _WETH) public {
      owner = msg.sender;
+     isAuthorized[msg.sender] = true;
      WETH = IWETH(_WETH);
    }
 
@@ -28,7 +30,7 @@ contract Sandwich {
      WETH.deposit{value:msg.value}();
    }
 
-   function swap(uint amountIn, uint amountOutMin, address[] memory path) public onlyOwner {
+   function swap(uint amountIn, uint amountOutMin, address[] memory path) public onlyAuthorized {
      uint[] memory amounts = UniswapV2Library.getAmountsOut(factory, amountIn, path);
      require(amounts[amounts.length - 1] >= amountOutMin, 'UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT');
      IERC20(path[0]).transfer(UniswapV2Library.pairFor(factory, path[0], path[1]), amounts[0]);
@@ -57,9 +59,18 @@ contract Sandwich {
      balance = IERC20(token).balanceOf(address(this));
    }
 
+   function addAuthority(address user) external onlyOwner {
+     require(!isAuthorized[user], "User already authorized");
+     isAuthorized[user] = true;
+   }
+
    modifier onlyOwner {
-     require(msg.sender == owner);
+     require(msg.sender == owner, "Not owner");
      _;
    }
 
+   modifier onlyAuthorized {
+     require(isAuthorized[msg.sender], "Not authorized to swap");
+     _;
+   }
 }

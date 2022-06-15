@@ -1,12 +1,12 @@
 const ethers = require("ethers");
 
 const UniswapV2PairAbi = require("./abi/UniswapV2Pair.json");
-const { signer } = require("./trade_variables.js");
+const { wallet } = require("./trade_variables.js");
 
 const uniswapV2Pair = new ethers.Contract(
   ethers.constants.AddressZero,
   UniswapV2PairAbi,
-  signer
+  wallet
 );
 
 const sortTokens = (tokenA, tokenB) => {
@@ -29,8 +29,9 @@ const getUniv2PairAddress = (tokenA, tokenB) => {
   return address;
 };
 
-const getUniv2Reserve = async (pair, tokenA, tokenB) => {
+const getUniv2Reserves = async (pair, tokenA, tokenB) => {
   const [token0] = sortTokens(tokenA, tokenB);
+  console.log(token0);
   const [reserve0, reserve1] = await uniswapV2Pair.attach(pair).getReserves();
 
   if (tokenA.toLowerCase() === token0.toLowerCase()) {
@@ -55,6 +56,44 @@ const getUniv2DataGivenAmountIn = (amountIn, reserveA, reserveB) => {
   };
 };
 
-exports.getUniv2Reserve = getUniv2Reserve;
+const encodeFunctionData = (abi, funcName, funcParams) => {
+  const iface = new ethers.utils.Interface(abi);
+  const calldata = iface.encodeFunctionData(funcName, funcParams);
+  return calldata;
+};
+
+const getRawTransaction = (tx) => {
+  console.log(tx);
+  const addKey = (accum, key) => {
+    if (tx[key]) {
+      accum[key] = tx[key];
+    }
+    return accum;
+  };
+
+  // Extract the relevant parts of the transaction and signature
+  const txFields =
+    "accessList chainId data gasPrice gasLimit maxFeePerGas maxPriorityFeePerGas nonce to type value".split(
+      " "
+    );
+  const sigFields = "v r s recoveryParam".split(" ");
+
+  // Seriailze the signed transaction
+  const raw = ethers.utils.serializeTransaction(
+    txFields.reduce(addKey, {}),
+    sigFields.reduce(addKey, {})
+  );
+
+  // Double check things went well
+  if (ethers.utils.keccak256(raw) !== tx.hash) {
+    throw new Error("serializing failed!");
+  }
+
+  return raw;
+};
+
+exports.getUniv2Reserves = getUniv2Reserves;
 exports.getUniv2PairAddress = getUniv2PairAddress;
 exports.getUniv2DataGivenAmountIn = getUniv2DataGivenAmountIn;
+exports.encodeFunctionData = encodeFunctionData;
+exports.getRawTransaction = getRawTransaction;

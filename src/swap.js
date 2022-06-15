@@ -9,13 +9,15 @@ const {
   SANDWICH_CONTRACT,
   CHAIN_ID,
   WETH,
-} = require("./src/trade_variables.js");
-const { encodeFunctionData } = require("./src/utils.js");
-const abi = require("./src/abi/Sandwich.json");
+} = require("./trade_variables.js");
+const { encodeFunctionData, getRawTransaction } = require("./utils.js");
+const abi = require("./abi/Sandwich.json");
 
-async function simulateTx(sandwichStates, token) {
-  const flashbotsProvider = getFlashbotsProvider();
+async function simulateTx(sandwichStates, token, rawVictimTx) {
+  console.log(sandwichStates.frontrunState);
+  const flashbotsProvider = await getFlashbotsProvider();
 
+  const nonce = await provider.getTransactionCount(wallet.address);
   const targetBlockNumber = (await provider.getBlockNumber()) + 1;
   const block = await provider.getBlock();
   const baseFeePerGas = block.baseFeePerGas; // wei
@@ -32,9 +34,14 @@ async function simulateTx(sandwichStates, token) {
     [WETH, token],
   ]);
 
+  /* 
+  Temp fix without simulating victim tx 
+  Error: signature missing v and recoveryParam
+  */
   const backrunTxData = encodeFunctionData(abi, "swap", [
     sandwichStates.frontrunState.amountOut,
-    sandwichStates.backrun.amountOut,
+    // sandwichStates.backrunState.amountOut,
+    0,
     [token, WETH],
   ]);
 
@@ -48,10 +55,13 @@ async function simulateTx(sandwichStates, token) {
         chainId: CHAIN_ID,
         maxPriorityFeePerGas: maxPriorityFeePerGas,
         maxFeePerGas: maxFeePerGas,
-        value: 0,
         gasLimit: 250000,
+        nonce: nonce,
       },
     },
+    // {
+    // signedTransaction: getRawTransaction(victimTx),
+    // },
     {
       signer: wallet,
       transaction: {
@@ -63,6 +73,7 @@ async function simulateTx(sandwichStates, token) {
         maxFeePerGas: maxFeePerGas,
         value: 0,
         gasLimit: 250000,
+        nonce: nonce + 1,
       },
     },
   ];
@@ -76,9 +87,11 @@ async function simulateTx(sandwichStates, token) {
     targetBlockNumber
   );
 
+  console.log(simulation);
+
   return simulation;
 }
 
 exports.simulateTx = simulateTx;
 
-// simulateTx({}, "0x63bfb2118771bd0da7A6936667A7BB705A06c1bA");
+// Calculate Gas and bribe

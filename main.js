@@ -5,17 +5,18 @@ const {
   TOKENS_TO_MONITOR,
   WETH,
 } = require("./src/trade_variables.js");
-const { getUniv2PairAddress, getUniv2Reserve } = require("./src/utils.js");
+const { getUniv2PairAddress, getUniv2Reserves } = require("./src/utils.js");
 const {
   calcOptimalSandwichAmount,
-  calcRawProfits,
+  calcSandwichStates,
 } = require("./src/calculation.js");
+const { simulateTx } = require("./src/swap.js");
 const SwapRouter02Abi = require("./src/abi/SwapRouter02.json");
 
 const iface = new ethers.utils.Interface(SwapRouter02Abi);
 
 async function filterTx(tx) {
-  const { gasPrice, gasLimit, to, data } = tx;
+  const { to, data } = tx;
   let amountIn, amountOutMin, path, token0, token1;
   // UniswapV3Router
   if (to == "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45") {
@@ -59,7 +60,12 @@ async function filterTx(tx) {
     }
   }
 
-  if (token1 == undefined) {
+  if (
+    amountIn == undefined ||
+    amountOutMin == undefined ||
+    token1 == undefined ||
+    token0 == undefined
+  ) {
     return;
   }
 
@@ -79,8 +85,6 @@ async function filterTx(tx) {
         target: token1,
         amountIn: ethers.utils.formatEther(amountIn.toString()),
         amountOutMin: ethers.utils.formatEther(amountOutMin),
-        gasPrice: ethers.utils.formatUnits(gasPrice, "gwei"),
-        gasLimit: gasLimit.toString(),
       },
       null,
       "\t"
@@ -88,7 +92,7 @@ async function filterTx(tx) {
   );
 
   const pairAddress = getUniv2PairAddress(WETH, token1);
-  const [reserveWETH, reserveToken] = await getUniv2Reserve(
+  const [reserveWETH, reserveToken] = await getUniv2Reserves(
     pairAddress,
     WETH,
     token1
@@ -105,22 +109,31 @@ async function filterTx(tx) {
     ethers.utils.formatEther(optimalSandwichAmount.toString())
   );
 
-  const rawProfits = calcRawProfits(
+  const sandwichStates = calcSandwichStates(
     amountIn,
     amountOutMin,
     reserveWETH,
     reserveToken,
     optimalSandwichAmount
   );
-  console.log(
-    "Raw profits excluding transaction costs: ",
-    ethers.utils.formatEther(rawProfits.toString())
-  );
 
-  if (rawProfits === null) {
+  if (sandwichStates === null) {
     console.log("Victim receives less than minimum amount");
     return;
   }
+
+  const rawProfits = sandwichStates.backrunState.amountOut.sub(
+    optimalSandwichAmount
+  );
+  console.log("rawProfits", ethers.utils.formatEther(rawProfits).toString());
+
+  if (rawProfits < 0) {
+    console.log("Not profitable to sandwich before adding tx costs");
+    return;
+  }
+
+  // const rawVictimTx = getRawTransaction(tx);
+  const simulation = await simulateTx(sandwichStates, token1, tx);
 }
 
 async function main() {

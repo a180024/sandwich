@@ -5,14 +5,14 @@ const { MAX_WETH_TO_SANDWICH } = require("./trade_variables.js");
 const BN_18 = ethers.utils.parseUnits("1.0");
 const TOLERANCE = ethers.utils.parseUnits("0.01"); // 1%
 
-function binarySearch(
+const binarySearch = (
   left,
   right,
   amountIn,
   amountOutMin,
   reserveWETH,
   reserveToken
-) {
+) => {
   const mid = right.add(left).div(2);
   if (right.sub(left).lte(TOLERANCE.mul(mid).div(BN_18))) {
     return mid;
@@ -47,14 +47,14 @@ function binarySearch(
       reserveToken
     );
   }
-}
+};
 
-function calcOptimalSandwichAmount(
+const calcOptimalSandwichAmount = (
   amountIn,
   amountOutMin,
   reserveWETH,
   reserveToken
-) {
+) => {
   const lowerBound = ethers.utils.parseUnits("0");
   const upperBound = ethers.utils.parseUnits(MAX_WETH_TO_SANDWICH.toString());
   const optimalSandwichAmount = binarySearch(
@@ -66,15 +66,15 @@ function calcOptimalSandwichAmount(
     reserveToken
   );
   return optimalSandwichAmount;
-}
+};
 
-function calcRawProfits(
+const calcSandwichStates = (
   amountIn,
   amountOutMin,
   reserveWETH,
   reserveToken,
   optimalSandwichAmount
-) {
+) => {
   const frontrunState = getUniv2DataGivenAmountIn(
     optimalSandwichAmount,
     reserveWETH,
@@ -95,10 +95,15 @@ function calcRawProfits(
     return null;
   }
 
-  const rawProfits = backrunState.amountOut.sub(optimalSandwichAmount);
-
-  return rawProfits;
-}
+  return {
+    optimalSandwichAmount,
+    amountIn,
+    amountOutMin,
+    frontrunState,
+    victimState,
+    backrunState,
+  };
+};
 
 exports.calcOptimalSandwichAmount = calcOptimalSandwichAmount;
-exports.calcRawProfits = calcRawProfits;
+exports.calcSandwichStates = calcSandwichStates;
