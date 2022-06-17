@@ -132,10 +132,10 @@ async function filterTx(tx) {
   console.log("Raw profits: ", ethers.utils.formatEther(rawProfits).toString());
 
   // First profitability check
-  // if (rawProfits < 0) {
-  // console.log("Not profitable to sandwich before adding tx costs");
-  // return;
-  // }
+  if (rawProfits < 0) {
+    console.log("Not profitable to sandwich before adding tx costs");
+    return;
+  }
 
   // Gas Parameters
   const block = await provider.getBlock();
@@ -177,7 +177,7 @@ async function filterTx(tx) {
   const maxBribe = rawProfits.sub(frontrunGasUsed.mul(maxBaseFeePerGas));
   console.log(maxBribe.lt(maxBaseFeePerGas));
   // Second profitability check
-  // if (maxBribe < 0) return;
+  if (maxBribe < 0) return;
   const maxPriorityFeePerGas = maxBribe.mul(80).div(100);
   const transactionBundle = await buildFlashbotsTx(
     sandwichStates,
