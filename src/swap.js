@@ -1,9 +1,4 @@
-const ethers = require("ethers");
 const {
-  FlashbotsBundleProvider,
-} = require("@flashbots/ethers-provider-bundle");
-const {
-  getFlashbotsProvider,
   provider,
   wallet,
   SANDWICH_CONTRACT,
@@ -13,18 +8,14 @@ const {
 const { encodeFunctionData, getRawTransaction } = require("./utils.js");
 const abi = require("./abi/Sandwich.json");
 
-const buildFlashbotsTx = async (sandwichStates, token, victimTx) => {
-  const flashbotsProvider = await getFlashbotsProvider();
-
+const buildFlashbotsTx = async (
+  sandwichStates,
+  token,
+  victimTx,
+  maxBaseFeePerGas,
+  maxPriorityFeePerGas
+) => {
   const nonce = await provider.getTransactionCount(wallet.address);
-  const block = await provider.getBlock();
-  const baseFeePerGas = block.baseFeePerGas; // wei
-  const maxBaseFeePerGas = FlashbotsBundleProvider.getMaxBaseFeeInFutureBlock(
-    baseFeePerGas,
-    1
-  );
-  const maxPriorityFeePerGas = ethers.utils.parseUnits("1.0", "gwei");
-  const maxFeePerGas = maxPriorityFeePerGas.add(maxBaseFeePerGas);
 
   const frontrunTxData = encodeFunctionData(abi, "swap", [
     sandwichStates.optimalSandwichAmount,
@@ -46,8 +37,8 @@ const buildFlashbotsTx = async (sandwichStates, token, victimTx) => {
         data: frontrunTxData,
         type: 2,
         chainId: CHAIN_ID,
-        maxPriorityFeePerGas: maxPriorityFeePerGas,
-        maxFeePerGas: maxFeePerGas,
+        maxPriorityFeePerGas: 0,
+        maxFeePerGas: maxBaseFeePerGas,
         gasLimit: 250000,
         nonce: nonce,
       },
@@ -63,7 +54,7 @@ const buildFlashbotsTx = async (sandwichStates, token, victimTx) => {
         type: 2,
         chainId: CHAIN_ID,
         maxPriorityFeePerGas: maxPriorityFeePerGas,
-        maxFeePerGas: maxFeePerGas,
+        maxFeePerGas: maxBaseFeePerGas,
         value: 0,
         gasLimit: 250000,
         nonce: nonce + 1,
@@ -71,11 +62,7 @@ const buildFlashbotsTx = async (sandwichStates, token, victimTx) => {
     },
   ];
 
-  const signedTransactions = await flashbotsProvider.signBundle(
-    transactionBundle
-  );
-
-  return signedTransactions;
+  return transactionBundle;
 };
 
 exports.buildFlashbotsTx = buildFlashbotsTx;

@@ -1,4 +1,7 @@
 const ethers = require("ethers");
+const {
+  FlashbotsBundleProvider,
+} = require("@flashbots/ethers-provider-bundle");
 require("dotenv").config();
 const {
   provider,
@@ -126,24 +129,69 @@ async function filterTx(tx) {
   const rawProfits = sandwichStates.backrunState.amountOut.sub(
     optimalSandwichAmount
   );
-  console.log("rawProfits", ethers.utils.formatEther(rawProfits).toString());
+  console.log("Raw profits: ", ethers.utils.formatEther(rawProfits).toString());
 
-  if (rawProfits < 0) {
-    console.log("Not profitable to sandwich before adding tx costs");
+  // First profitability check
+  // if (rawProfits < 0) {
+  // console.log("Not profitable to sandwich before adding tx costs");
+  // return;
+  // }
+
+  // Gas Parameters
+  const block = await provider.getBlock();
+  const baseFeePerGas = block.baseFeePerGas; // wei
+  const maxBaseFeePerGas = FlashbotsBundleProvider.getMaxBaseFeeInFutureBlock(
+    baseFeePerGas,
+    1
+  );
+
+  // Simulate
+  let simulation;
+  const flashbotsProvider = await getFlashbotsProvider();
+  const targetBlockNumber = (await provider.getBlockNumber()) + 1;
+  const transactionBundleSim = await buildFlashbotsTx(
+    sandwichStates,
+    token1,
+    tx,
+    maxBaseFeePerGas,
+    ethers.utils.parseUnits("0", "gwei")
+  );
+  const signedTransactions = await flashbotsProvider.signBundle(
+    transactionBundleSim
+  );
+  try {
+    simulation = await flashbotsProvider.simulate(
+      signedTransactions,
+      targetBlockNumber
+    );
+  } catch (err) {
+    console.log("Simulation failed");
     return;
   }
 
-  const flashbotsProvider = await getFlashbotsProvider();
-  const targetBlockNumber = (await provider.getBlockNumber()) + 1;
-  const signedTransactions = await buildFlashbotsTx(sandwichStates, token1, tx);
-  const simulation = await flashbotsProvider.simulate(
-    signedTransactions,
+  // Sandwich
+  const results = simulation["results"];
+  console.log(results.length);
+  const frontrunGasUsed = ethers.BigNumber.from(results[0]["gasUsed"]);
+  const backrunGasUsed = ethers.BigNumber.from(results[2]["gasUsed"]);
+  const maxBribe = rawProfits.sub(frontrunGasUsed.mul(maxBaseFeePerGas));
+  console.log(maxBribe.lt(maxBaseFeePerGas));
+  // Second profitability check
+  // if (maxBribe < 0) return;
+  const maxPriorityFeePerGas = maxBribe.mul(80).div(100);
+  const transactionBundle = await buildFlashbotsTx(
+    sandwichStates,
+    token1,
+    tx,
+    maxBaseFeePerGas,
+    maxPriorityFeePerGas
+  );
+  const flashbotsTransactionResponse = await flashbotsProvider.sendBundle(
+    transactionBundle,
     targetBlockNumber
   );
-  console.log(simulation);
-
-  // Include victim tx
-  // Calculate Gas and bribe
+  const receipt = await flashbotsTransactionResponse.receipts();
+  console.log(receipt);
 }
 
 async function main() {
