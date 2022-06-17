@@ -175,10 +175,15 @@ async function filterTx(tx) {
   const frontrunGasUsed = ethers.BigNumber.from(results[0]["gasUsed"]);
   const backrunGasUsed = ethers.BigNumber.from(results[2]["gasUsed"]);
   const maxBribe = rawProfits.sub(frontrunGasUsed.mul(maxBaseFeePerGas));
-  console.log(maxBribe.lt(maxBaseFeePerGas));
   // Second profitability check
   if (maxBribe < 0) return;
-  const maxPriorityFeePerGas = maxBribe.mul(80).div(100);
+  console.log(maxBribe.lt(maxBaseFeePerGas));
+  const maxPriorityFeePerGas = maxBribe.mul(99).div(100);
+  console.log(maxPriorityFeePerGas);
+  if (maxPriorityFeePerGas.lt(maxBaseFeePerGas)) {
+    console.log("Gas price below base fee.");
+    return;
+  }
   const transactionBundle = await buildFlashbotsTx(
     sandwichStates,
     token1,
