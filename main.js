@@ -1,29 +1,29 @@
 const ethers = require("ethers");
-const {
-  FlashbotsBundleProvider,
-} = require("@flashbots/ethers-provider-bundle");
 require("dotenv").config();
 const {
   provider,
-  getFlashbotsProvider,
+  wallet,
   TOKENS_TO_MONITOR,
   WETH,
+  UNISWAPV2_ROUTER,
+  UNISWAPV3_ROUTER,
 } = require("./src/trade_variables.js");
 const { getUniv2PairAddress, getUniv2Reserves } = require("./src/utils.js");
 const {
   calcOptimalSandwichAmount,
   calcSandwichStates,
 } = require("./src/calculation.js");
-const { buildFlashbotsTx } = require("./src/swap.js");
+const { swap, simulateTransaction } = require("./src/swap.js");
 const SwapRouter02Abi = require("./src/abi/SwapRouter02.json");
 
 const iface = new ethers.utils.Interface(SwapRouter02Abi);
 
+// Uniswap v3
 async function filterTx(tx) {
-  const { to, data } = tx;
+  const { to, data, maxFeePerGas, maxPriorityFeePerGas, gasPrice, type } = tx;
   let amountIn, amountOutMin, path, token0, token1;
-  // UniswapV3Router
-  if (to == "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45") {
+
+  if (to == UNISWAPV3_ROUTER) {
     const inputData = iface.parseTransaction({ data: data });
     const inputArgs = inputData["args"];
     if (
@@ -40,8 +40,8 @@ async function filterTx(tx) {
       }
     }
   }
-  // UniswapV2Router
-  if (to == "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D") {
+
+  if (to == UNISWAPV2_ROUTER) {
     const sigHash = data.slice(0, 10);
     // swapExactETHForTokens(uint256,address[],address,uint256)
     if (sigHash.toLowerCase() == "0x7ff36ab5") {
@@ -126,77 +126,101 @@ async function filterTx(tx) {
     return;
   }
 
+  /* First profitability check */
   const rawProfits = sandwichStates.backrunState.amountOut.sub(
     optimalSandwichAmount
   );
-  console.log("Raw profits: ", ethers.utils.formatEther(rawProfits).toString());
+  console.log(
+    "Profits before gas costs: ",
+    ethers.utils.formatEther(rawProfits).toString()
+  );
 
-  // First profitability check
-  if (rawProfits < 0) {
-    console.log("Not profitable to sandwich before adding tx costs");
-    return;
-  }
+  // if (rawProfits < 0) {
+  // console.log("Not profitable to sandwich before transaction costs");
+  // return;
+  // }
 
-  // Gas Parameters
+  // Sandwich (x3 Gas multiplier for front run)
   const block = await provider.getBlock();
   const baseFeePerGas = block.baseFeePerGas; // wei
-  const maxBaseFeePerGas = FlashbotsBundleProvider.getMaxBaseFeeInFutureBlock(
-    baseFeePerGas,
-    1
+  const nonce = await provider.getTransactionCount(wallet.address);
+
+  const frontrunMaxPriorityFeePerGas =
+    type === 2 ? maxPriorityFeePerGas.mul(3) : gasPrice.mul(3);
+  const frontrunMaxFeePerGas = frontrunMaxPriorityFeePerGas.add(baseFeePerGas);
+  const frontrunGasEstimate = await simulateTransaction(
+    sandwichStates.optimalSandwichAmount,
+    sandwichStates.frontrunState.amountOut,
+    [WETH, token1],
+    frontrunMaxPriorityFeePerGas,
+    frontrunMaxFeePerGas,
+    nonce
   );
 
-  // Simulate
-  let simulation;
-  const flashbotsProvider = await getFlashbotsProvider();
-  const targetBlockNumber = (await provider.getBlockNumber()) + 1;
-  const transactionBundleSim = await buildFlashbotsTx(
-    sandwichStates,
-    token1,
-    tx,
-    maxBaseFeePerGas,
-    ethers.utils.parseUnits("0", "gwei")
+  const backrunMaxPriorityFeePerGas =
+    type === 2 ? maxPriorityFeePerGas : gasPrice;
+  const backrunMaxFeePerGas = backrunMaxPriorityFeePerGas.add(baseFeePerGas);
+  const backrunGasEstimate = await simulateTransaction(
+    sandwichStates.frontrunState.amountOut,
+    sandwichStates.backrunState.amountOut,
+    [WETH, token1],
+    backrunMaxPriorityFeePerGas,
+    backrunMaxFeePerGas,
+    nonce + 1
   );
-  const signedTransactions = await flashbotsProvider.signBundle(
-    transactionBundleSim
-  );
-  try {
-    simulation = await flashbotsProvider.simulate(
-      signedTransactions,
-      targetBlockNumber
-    );
-  } catch (err) {
-    console.log("Simulation failed");
-    return;
-  }
 
-  // Sandwich
-  const results = simulation["results"];
-  console.log(results.length);
-  const frontrunGasUsed = ethers.BigNumber.from(results[0]["gasUsed"]);
-  const backrunGasUsed = ethers.BigNumber.from(results[2]["gasUsed"]);
-  const maxBribe = rawProfits.sub(frontrunGasUsed.mul(maxBaseFeePerGas));
-  // Second profitability check
-  if (maxBribe < 0) return;
-  console.log(maxBribe.lt(maxBaseFeePerGas));
-  const maxPriorityFeePerGas = maxBribe.mul(99).div(100);
-  console.log(maxPriorityFeePerGas);
-  if (maxPriorityFeePerGas.lt(maxBaseFeePerGas)) {
-    console.log("Gas price below base fee.");
-    return;
-  }
-  const transactionBundle = await buildFlashbotsTx(
-    sandwichStates,
-    token1,
-    tx,
-    maxBaseFeePerGas,
-    maxPriorityFeePerGas
+  /* Second profitability check */
+  const frontrunTxCostEstimate = frontrunMaxFeePerGas.mul(frontrunGasEstimate);
+  const backrunTxCostEstimate = backrunMaxFeePerGas.mul(backrunGasEstimate);
+  const netProfitsEstimate = rawProfits
+    .sub(frontrunTxCostEstimate)
+    .sub(backrunTxCostEstimate);
+  // if (netProfitsEstimate < 0) {
+  // console.log("Sandwich estimate is not profitable");
+  // return;
+  // }
+  console.log(
+    "Estimated sandwich profits: ",
+    ethers.utils.formatEther(netProfitsEstimate).toString()
   );
-  const flashbotsTransactionResponse = await flashbotsProvider.sendBundle(
-    transactionBundle,
-    targetBlockNumber
+
+  const frontrunTx = await swap(
+    sandwichStates.optimalSandwichAmount,
+    sandwichStates.frontrunState.amountOut,
+    [WETH, token1],
+    frontrunMaxPriorityFeePerGas,
+    frontrunMaxFeePerGas,
+    nonce
   );
-  const receipt = await flashbotsTransactionResponse.receipts();
-  console.log(receipt);
+  const frontrunReceipt = await frontrunTx.wait();
+  const frontrunGasUsed = frontrunReceipt.gasUsed;
+  const frontrunGasPrice = frontrunReceipt.effectiveGasPrice;
+  const frontrunTxCost = frontrunGasUsed.mul(frontrunGasPrice);
+  const frontrunTxHash = frontrunReceipt.transactionHash;
+  console.log(
+    `Frontrun Transaction: https://goerli.etherscan.io/tx/${frontrunTxHash}`
+  );
+
+  setTimeout(() => {}, "1");
+
+  const backrunTx = await swap(
+    sandwichStates.frontrunState.amountOut,
+    sandwichStates.backrunState.amountOut,
+    [token1, WETH],
+    backrunMaxPriorityFeePerGas,
+    backrunMaxFeePerGas,
+    nonce + 1
+  );
+  const backrunReceipt = await backrunTx.wait();
+  const backrunGasUsed = backrunReceipt.gasUsed;
+  const backrunGasPrice = backrunReceipt.effectiveGasPrice;
+  const backrunTxCost = backrunGasUsed.mul(backrunGasPrice);
+  const backrunTxHash = backrunReceipt.transactionHash;
+  console.log(
+    `Backrun Transaction: https://goerli.etherscan.io/tx/${backrunTxHash}`
+  );
+  const netProfits = rawProfits.sub(frontrunTxCost).sub(backrunTxCost);
+  console.log("Net Profits: ", ethers.utils.formatEther(netProfits).toString());
 }
 
 async function main() {

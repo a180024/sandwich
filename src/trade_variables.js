@@ -4,8 +4,11 @@ const {
 } = require("@flashbots/ethers-provider-bundle");
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
+const SandwichAbi = require("./abi/Sandwich.json");
 
 const WETH = "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6";
+const UNISWAPV2_ROUTER = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D";
+const UNISWAPV3_ROUTER = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
 const TOKENS_TO_MONITOR = [
   "0x845E5517e1cCB9394f49C909870Ea144937B68EC",
   "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
@@ -27,8 +30,15 @@ const getFlashbotsProvider = async () => {
     "goerli"
   );
 };
+const sandwichContract = new ethers.Contract(
+  SANDWICH_CONTRACT,
+  SandwichAbi,
+  wallet
+);
 
 module.exports = {
+  UNISWAPV2_ROUTER,
+  UNISWAPV3_ROUTER,
   WETH,
   TOKENS_TO_MONITOR,
   MAX_WETH_TO_SANDWICH,
@@ -38,4 +48,5 @@ module.exports = {
   provider,
   getFlashbotsProvider,
   wallet,
+  sandwichContract,
 };

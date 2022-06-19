@@ -31,7 +31,6 @@ const getUniv2PairAddress = (tokenA, tokenB) => {
 
 const getUniv2Reserves = async (pair, tokenA, tokenB) => {
   const [token0] = sortTokens(tokenA, tokenB);
-  console.log(token0);
   const [reserve0, reserve1] = await uniswapV2Pair.attach(pair).getReserves();
 
   if (tokenA.toLowerCase() === token0.toLowerCase()) {

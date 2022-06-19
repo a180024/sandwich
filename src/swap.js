@@ -1,68 +1,55 @@
-const {
-  provider,
-  wallet,
-  SANDWICH_CONTRACT,
-  CHAIN_ID,
-  WETH,
-} = require("./trade_variables.js");
-const { encodeFunctionData, getRawTransaction } = require("./utils.js");
-const abi = require("./abi/Sandwich.json");
+const ethers = require("ethers");
+const { sandwichContract } = require("./trade_variables.js");
 
-const buildFlashbotsTx = async (
-  sandwichStates,
-  token,
-  victimTx,
-  maxBaseFeePerGas,
-  maxPriorityFeePerGas
+const simulateTransaction = async (
+  amountIn,
+  amoutOutMin,
+  path,
+  maxPriorityFeePerGas,
+  maxFeePerGas,
+  nonce
 ) => {
-  const nonce = await provider.getTransactionCount(wallet.address);
-
-  const frontrunTxData = encodeFunctionData(abi, "swap", [
-    sandwichStates.optimalSandwichAmount,
-    sandwichStates.frontrunState.amountOut,
-    [WETH, token],
-  ]);
-
-  const backrunTxData = encodeFunctionData(abi, "swap", [
-    sandwichStates.frontrunState.amountOut,
-    sandwichStates.backrunState.amountOut,
-    [token, WETH],
-  ]);
-
-  const transactionBundle = [
-    {
-      signer: wallet,
-      transaction: {
-        to: SANDWICH_CONTRACT,
-        data: frontrunTxData,
-        type: 2,
-        chainId: CHAIN_ID,
-        maxPriorityFeePerGas: 0,
-        maxFeePerGas: maxBaseFeePerGas,
-        gasLimit: 250000,
-        nonce: nonce,
-      },
-    },
-    {
-      signedTransaction: getRawTransaction(victimTx),
-    },
-    {
-      signer: wallet,
-      transaction: {
-        to: SANDWICH_CONTRACT,
-        data: backrunTxData,
-        type: 2,
-        chainId: CHAIN_ID,
-        maxPriorityFeePerGas: maxPriorityFeePerGas,
-        maxFeePerGas: maxBaseFeePerGas,
-        value: 0,
-        gasLimit: 250000,
-        nonce: nonce + 1,
-      },
-    },
-  ];
-
-  return transactionBundle;
+  try {
+    await sandwichContract.callStatic.swap(amountIn, amoutOutMin, path, {
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+      nonce,
+    });
+    const gasEstimate = sandwichContract.estimateGas.swap(
+      amountIn,
+      amoutOutMin,
+      path
+    );
+    return gasEstimate;
+  } catch (e) {
+    if (e.code == ethers.errors.CALL_EXCEPTION) {
+      console.log("Simulation failed.");
+    }
+  }
 };
 
-exports.buildFlashbotsTx = buildFlashbotsTx;
+const swap = async (
+  amountIn,
+  amoutOutMin,
+  path,
+  maxPriorityFeePerGas,
+  maxFeePerGas,
+  nonce
+) => {
+  try {
+    const tx = await sandwichContract.swap(amountIn, amoutOutMin, path, {
+      maxPriorityFeePerGas,
+      maxFeePerGas,
+      nonce,
+      gasLimit: 250000,
+    });
+    return tx;
+  } catch (e) {
+    if (e.code == ethers.errors.CALL_EXCEPTION) {
+      console.log("Swap failed.");
+    }
+  }
+};
+
+exports.simulateTransaction = simulateTransaction;
+exports.swap = swap;
