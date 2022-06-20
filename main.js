@@ -145,9 +145,15 @@ async function filterTx(tx) {
   const baseFeePerGas = block.baseFeePerGas; // wei
   const nonce = await provider.getTransactionCount(wallet.address);
 
+  console.log("AmountIn", sandwichStates.optimalSandwichAmount);
+  console.log("Amount Out", sandwichStates.frontrunState.amountOut);
+  console.log("token", token1);
+
   const frontrunMaxPriorityFeePerGas =
     type === 2 ? maxPriorityFeePerGas.mul(3) : gasPrice.mul(3);
   const frontrunMaxFeePerGas = frontrunMaxPriorityFeePerGas.add(baseFeePerGas);
+  console.log(frontrunMaxPriorityFeePerGas);
+  console.log(frontrunMaxFeePerGas);
   const frontrunGasEstimate = await simulateTransaction(
     sandwichStates.optimalSandwichAmount,
     sandwichStates.frontrunState.amountOut,
@@ -156,6 +162,10 @@ async function filterTx(tx) {
     frontrunMaxFeePerGas,
     nonce
   );
+  if (frontrunGasEstimate == undefined) {
+    console.log("Frontrun simulation failed");
+    return;
+  }
 
   const backrunMaxPriorityFeePerGas =
     type === 2 ? maxPriorityFeePerGas : gasPrice;
@@ -168,6 +178,11 @@ async function filterTx(tx) {
     backrunMaxFeePerGas,
     nonce + 1
   );
+  if (backrunGasEstimate == undefined) return;
+  if (backrunGasEstimate == undefined) {
+    console.log("Backrun simulation failed");
+    return;
+  }
 
   /* Second profitability check */
   const frontrunTxCostEstimate = frontrunMaxFeePerGas.mul(frontrunGasEstimate);
@@ -201,7 +216,7 @@ async function filterTx(tx) {
     `Frontrun Transaction: https://goerli.etherscan.io/tx/${frontrunTxHash}`
   );
 
-  setTimeout(() => {}, "1");
+  setTimeout(() => {}, "10");
 
   const backrunTx = await swap(
     sandwichStates.frontrunState.amountOut,
