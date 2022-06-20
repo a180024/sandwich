@@ -131,15 +131,16 @@ async function filterTx(tx) {
   );
   console.log("Raw profits: ", ethers.utils.formatEther(rawProfits).toString());
 
-  // First profitability check
-  if (rawProfits < 0) {
-    console.log("Not profitable to sandwich before adding tx costs");
-    return;
-  }
+  /* First profitability check */
+  // if (rawProfits < 0) {
+  // console.log("Not profitable to sandwich before adding tx costs");
+  // return;
+  // }
 
   // Gas Parameters
   const block = await provider.getBlock();
   const baseFeePerGas = block.baseFeePerGas; // wei
+  let targetBlockNumber = block.number + 1;
   const maxBaseFeePerGas = FlashbotsBundleProvider.getMaxBaseFeeInFutureBlock(
     baseFeePerGas,
     1
@@ -148,7 +149,6 @@ async function filterTx(tx) {
   // Simulate
   let simulation;
   const flashbotsProvider = await getFlashbotsProvider();
-  const targetBlockNumber = (await provider.getBlockNumber()) + 1;
   const transactionBundleSim = await buildFlashbotsTx(
     sandwichStates,
     token1,
@@ -165,25 +165,26 @@ async function filterTx(tx) {
       targetBlockNumber
     );
   } catch (err) {
+    console.log(err);
     console.log("Simulation failed");
     return;
   }
 
+  console.log(simulation);
+
   // Sandwich
   const results = simulation["results"];
-  console.log(results.length);
   const frontrunGasUsed = ethers.BigNumber.from(results[0]["gasUsed"]);
   const backrunGasUsed = ethers.BigNumber.from(results[2]["gasUsed"]);
   const maxBribe = rawProfits.sub(frontrunGasUsed.mul(maxBaseFeePerGas));
-  // Second profitability check
-  if (maxBribe < 0) return;
-  console.log(maxBribe.lt(maxBaseFeePerGas));
+  /* Second profitability check */
+  // if (maxBribe < 0) return;
   const maxPriorityFeePerGas = maxBribe.mul(99).div(100);
-  console.log(maxPriorityFeePerGas);
-  if (maxPriorityFeePerGas.lt(maxBaseFeePerGas)) {
-    console.log("Gas price below base fee.");
-    return;
-  }
+  /* Transactions won't be mined if priority < base fee */
+  // if (maxPriorityFeePerGas.lt(maxBaseFeePerGas)) {
+  // console.log("Gas price below base fee.");
+  // return;
+  // }
   const transactionBundle = await buildFlashbotsTx(
     sandwichStates,
     token1,
@@ -191,12 +192,15 @@ async function filterTx(tx) {
     maxBaseFeePerGas,
     maxPriorityFeePerGas
   );
-  const flashbotsTransactionResponse = await flashbotsProvider.sendBundle(
-    transactionBundle,
-    targetBlockNumber
-  );
-  const receipt = await flashbotsTransactionResponse.receipts();
-  console.log(receipt);
+  while (targetBlockNumber) {
+    const flashbotsTransactionResponse = await flashbotsProvider.sendBundle(
+      transactionBundle,
+      targetBlockNumber
+    );
+    const receipt = await flashbotsTransactionResponse.receipts();
+    console.log(receipt);
+    targetBlockNumber++;
+  }
 }
 
 async function main() {
