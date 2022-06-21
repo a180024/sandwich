@@ -36,19 +36,13 @@ const swap = async (
   maxFeePerGas,
   nonce
 ) => {
-  try {
-    const tx = await sandwichContract.swap(amountIn, amoutOutMin, path, {
-      maxPriorityFeePerGas,
-      maxFeePerGas,
-      nonce,
-      gasLimit: 250000,
-    });
-    return tx;
-  } catch (e) {
-    if (e.code == ethers.errors.CALL_EXCEPTION) {
-      console.log("Swap failed.");
-    }
-  }
+  const tx = await sandwichContract.swap(amountIn, amoutOutMin, path, {
+    maxPriorityFeePerGas,
+    maxFeePerGas,
+    nonce,
+    gasLimit: 250000,
+  });
+  return tx;
 };
 
 exports.simulateTransaction = simulateTransaction;

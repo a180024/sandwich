@@ -18,7 +18,6 @@ const SwapRouter02Abi = require("./src/abi/SwapRouter02.json");
 
 const iface = new ethers.utils.Interface(SwapRouter02Abi);
 
-// Uniswap v3
 async function filterTx(tx) {
   const { to, data, maxFeePerGas, maxPriorityFeePerGas, gasPrice, type } = tx;
   let amountIn, amountOutMin, path, token0, token1;
@@ -145,15 +144,9 @@ async function filterTx(tx) {
   const baseFeePerGas = block.baseFeePerGas; // wei
   const nonce = await provider.getTransactionCount(wallet.address);
 
-  console.log("AmountIn", sandwichStates.optimalSandwichAmount);
-  console.log("Amount Out", sandwichStates.frontrunState.amountOut);
-  console.log("token", token1);
-
   const frontrunMaxPriorityFeePerGas =
     type === 2 ? maxPriorityFeePerGas.mul(3) : gasPrice.mul(3);
   const frontrunMaxFeePerGas = frontrunMaxPriorityFeePerGas.add(baseFeePerGas);
-  console.log(frontrunMaxPriorityFeePerGas);
-  console.log(frontrunMaxFeePerGas);
   const frontrunGasEstimate = await simulateTransaction(
     sandwichStates.optimalSandwichAmount,
     sandwichStates.frontrunState.amountOut,
@@ -170,34 +163,33 @@ async function filterTx(tx) {
   const backrunMaxPriorityFeePerGas =
     type === 2 ? maxPriorityFeePerGas : gasPrice;
   const backrunMaxFeePerGas = backrunMaxPriorityFeePerGas.add(baseFeePerGas);
-  const backrunGasEstimate = await simulateTransaction(
-    sandwichStates.frontrunState.amountOut,
-    sandwichStates.backrunState.amountOut,
-    [WETH, token1],
-    backrunMaxPriorityFeePerGas,
-    backrunMaxFeePerGas,
-    nonce + 1
-  );
-  if (backrunGasEstimate == undefined) return;
-  if (backrunGasEstimate == undefined) {
-    console.log("Backrun simulation failed");
-    return;
-  }
+  // const backrunGasEstimate = await simulateTransaction(
+  // sandwichStates.frontrunState.amountOut,
+  // sandwichStates.backrunState.amountOut,
+  // [WETH, token1],
+  // backrunMaxPriorityFeePerGas,
+  // backrunMaxFeePerGas,
+  // nonce + 1
+  // );
+  // if (backrunGasEstimate == undefined) {
+  // console.log("Backrun simulation failed");
+  // return;
+  // }
 
   /* Second profitability check */
-  const frontrunTxCostEstimate = frontrunMaxFeePerGas.mul(frontrunGasEstimate);
-  const backrunTxCostEstimate = backrunMaxFeePerGas.mul(backrunGasEstimate);
-  const netProfitsEstimate = rawProfits
-    .sub(frontrunTxCostEstimate)
-    .sub(backrunTxCostEstimate);
+  // const frontrunTxCostEstimate = frontrunMaxFeePerGas.mul(frontrunGasEstimate);
+  // const backrunTxCostEstimate = backrunMaxFeePerGas.mul(backrunGasEstimate);
+  // const netProfitsEstimate = rawProfits
+  // .sub(frontrunTxCostEstimate)
+  // .sub(backrunTxCostEstimate);
   // if (netProfitsEstimate < 0) {
   // console.log("Sandwich estimate is not profitable");
   // return;
   // }
-  console.log(
-    "Estimated sandwich profits: ",
-    ethers.utils.formatEther(netProfitsEstimate).toString()
-  );
+  // console.log(
+  // "Estimated sandwich profits: ",
+  // ethers.utils.formatEther(netProfitsEstimate).toString()
+  // );
 
   const frontrunTx = await swap(
     sandwichStates.optimalSandwichAmount,
@@ -207,14 +199,22 @@ async function filterTx(tx) {
     frontrunMaxFeePerGas,
     nonce
   );
-  const frontrunReceipt = await frontrunTx.wait();
-  const frontrunGasUsed = frontrunReceipt.gasUsed;
-  const frontrunGasPrice = frontrunReceipt.effectiveGasPrice;
-  const frontrunTxCost = frontrunGasUsed.mul(frontrunGasPrice);
-  const frontrunTxHash = frontrunReceipt.transactionHash;
-  console.log(
-    `Frontrun Transaction: https://goerli.etherscan.io/tx/${frontrunTxHash}`
-  );
+  let frontrunTxCost;
+  try {
+    const frontrunReceipt = await frontrunTx.wait();
+    const frontrunGasUsed = frontrunReceipt.gasUsed;
+    const frontrunGasPrice = frontrunReceipt.effectiveGasPrice;
+    frontrunTxCost = frontrunGasUsed.mul(frontrunGasPrice);
+    const frontrunTxHash = frontrunReceipt.transactionHash;
+    console.log(
+      `Frontrun Transaction: https://goerli.etherscan.io/tx/${frontrunTxHash}`
+    );
+  } catch (e) {
+    if (e.code == ethers.errors.CALL_EXCEPTION) {
+      console.log("Frontrun Swap failed.");
+    }
+    return;
+  }
 
   setTimeout(() => {}, "10");
 
@@ -226,16 +226,26 @@ async function filterTx(tx) {
     backrunMaxFeePerGas,
     nonce + 1
   );
-  const backrunReceipt = await backrunTx.wait();
-  const backrunGasUsed = backrunReceipt.gasUsed;
-  const backrunGasPrice = backrunReceipt.effectiveGasPrice;
-  const backrunTxCost = backrunGasUsed.mul(backrunGasPrice);
-  const backrunTxHash = backrunReceipt.transactionHash;
-  console.log(
-    `Backrun Transaction: https://goerli.etherscan.io/tx/${backrunTxHash}`
-  );
-  const netProfits = rawProfits.sub(frontrunTxCost).sub(backrunTxCost);
-  console.log("Net Profits: ", ethers.utils.formatEther(netProfits).toString());
+  try {
+    const backrunReceipt = await backrunTx.wait();
+    const backrunGasUsed = backrunReceipt.gasUsed;
+    const backrunGasPrice = backrunReceipt.effectiveGasPrice;
+    const backrunTxCost = backrunGasUsed.mul(backrunGasPrice);
+    const backrunTxHash = backrunReceipt.transactionHash;
+    console.log(
+      `Backrun Transaction: https://goerli.etherscan.io/tx/${backrunTxHash}`
+    );
+    const netProfits = rawProfits.sub(frontrunTxCost).sub(backrunTxCost);
+    console.log(
+      "Net Profits: ",
+      ethers.utils.formatEther(netProfits).toString()
+    );
+  } catch (e) {
+    if (e.code == ethers.errors.CALL_EXCEPTION) {
+      console.log("Backrun Swap failed.");
+    }
+    return;
+  }
 }
 
 async function main() {
