@@ -134,10 +134,10 @@ async function filterTx(tx) {
     ethers.utils.formatEther(rawProfits).toString()
   );
 
-  // if (rawProfits < 0) {
-  // console.log("Not profitable to sandwich before transaction costs");
-  // return;
-  // }
+  if (rawProfits < 0) {
+    console.log("Not profitable to sandwich before transaction costs");
+    return;
+  }
 
   // Sandwich (x3 Gas multiplier for front run)
   const block = await provider.getBlock();
@@ -163,33 +163,33 @@ async function filterTx(tx) {
   const backrunMaxPriorityFeePerGas =
     type === 2 ? maxPriorityFeePerGas : gasPrice;
   const backrunMaxFeePerGas = backrunMaxPriorityFeePerGas.add(baseFeePerGas);
-  // const backrunGasEstimate = await simulateTransaction(
-  // sandwichStates.frontrunState.amountOut,
-  // sandwichStates.backrunState.amountOut,
-  // [WETH, token1],
-  // backrunMaxPriorityFeePerGas,
-  // backrunMaxFeePerGas,
-  // nonce + 1
-  // );
-  // if (backrunGasEstimate == undefined) {
-  // console.log("Backrun simulation failed");
-  // return;
-  // }
+  const backrunGasEstimate = await simulateTransaction(
+    sandwichStates.frontrunState.amountOut,
+    sandwichStates.backrunState.amountOut,
+    [WETH, token1],
+    backrunMaxPriorityFeePerGas,
+    backrunMaxFeePerGas,
+    nonce + 1
+  );
+  if (backrunGasEstimate == undefined) {
+    console.log("Backrun simulation failed");
+    return;
+  }
 
   /* Second profitability check */
-  // const frontrunTxCostEstimate = frontrunMaxFeePerGas.mul(frontrunGasEstimate);
-  // const backrunTxCostEstimate = backrunMaxFeePerGas.mul(backrunGasEstimate);
-  // const netProfitsEstimate = rawProfits
-  // .sub(frontrunTxCostEstimate)
-  // .sub(backrunTxCostEstimate);
-  // if (netProfitsEstimate < 0) {
-  // console.log("Sandwich estimate is not profitable");
-  // return;
-  // }
-  // console.log(
-  // "Estimated sandwich profits: ",
-  // ethers.utils.formatEther(netProfitsEstimate).toString()
-  // );
+  const frontrunTxCostEstimate = frontrunMaxFeePerGas.mul(frontrunGasEstimate);
+  const backrunTxCostEstimate = backrunMaxFeePerGas.mul(backrunGasEstimate);
+  const netProfitsEstimate = rawProfits
+    .sub(frontrunTxCostEstimate)
+    .sub(backrunTxCostEstimate);
+  if (netProfitsEstimate < 0) {
+    console.log("Sandwich estimate is not profitable");
+    return;
+  }
+  console.log(
+    "Estimated sandwich profits: ",
+    ethers.utils.formatEther(netProfitsEstimate).toString()
+  );
 
   const frontrunTx = await swap(
     sandwichStates.optimalSandwichAmount,
