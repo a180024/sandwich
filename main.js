@@ -163,18 +163,18 @@ async function filterTx(tx) {
   const backrunMaxPriorityFeePerGas =
     type === 2 ? maxPriorityFeePerGas : gasPrice;
   const backrunMaxFeePerGas = backrunMaxPriorityFeePerGas.add(baseFeePerGas);
-  // const backrunGasEstimate = await simulateTransaction(
-  // sandwichStates.frontrunState.amountOut,
-  // sandwichStates.backrunState.amountOut,
-  // [WETH, token1],
-  // backrunMaxPriorityFeePerGas,
-  // backrunMaxFeePerGas,
-  // nonce + 1
-  // );
-  // if (backrunGasEstimate == undefined) {
-  // console.log("Backrun simulation failed");
-  // return;
-  // }
+  const backrunGasEstimate = await simulateTransaction(
+    sandwichStates.frontrunState.amountOut,
+    sandwichStates.backrunState.amountOut,
+    [WETH, token1],
+    backrunMaxPriorityFeePerGas,
+    backrunMaxFeePerGas,
+    nonce + 1
+  );
+  if (backrunGasEstimate == undefined) {
+    console.log("Backrun simulation failed");
+    return;
+  }
 
   /* Second profitability check */
   // const frontrunTxCostEstimate = frontrunMaxFeePerGas.mul(frontrunGasEstimate);
